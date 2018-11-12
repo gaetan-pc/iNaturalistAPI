@@ -353,6 +353,7 @@
             "min_species_ancestry": "11,22,33,123",
             "rank_level": 10
           },
+          "sounds_count": 1,
           "sounds": [
             {
               "id": 1,

@@ -98,22 +98,8 @@ describe( "ObservationsController", ( ) => {
             terms: { "taxon.ancestor_ids": [444, 555, 876, 987] }
           } );
           expect( q.filters ).to.deep.include( { term: { captive: false } } );
-          expect( q.filters ).to.deep.include( {
-            bool: {
-              should: [
-                { exists: { field: "photos.url" } },
-                { exists: { field: "photos_count" } }
-              ]
-            }
-          } );
-          expect( q.filters ).to.deep.include( {
-            bool: {
-              should: [
-                { exists: { field: "sounds" } },
-                { exists: { field: "sounds_count" } }
-              ]
-            }
-          } );
+          expect( q.filters ).to.deep.include( { exists: { field: "photos_count" } } );
+          expect( q.filters ).to.deep.include( { exists: { field: "sounds_count" } } );
           expect( q.filters ).to.deep.include( { exists: { field: "geojson" } } );
           expect( q.filters ).to.deep.include( { exists: { field: "taxon" } } );
           // plus a complicated date filter
@@ -132,22 +118,8 @@ describe( "ObservationsController", ( ) => {
             terms: { "taxon.ancestor_ids": [444, 555, 876, 987] }
           } );
           expect( q.grouped_inverse_filters ).to.deep.include( { term: { captive: false } } );
-          expect( q.grouped_inverse_filters ).to.deep.include( {
-            bool: {
-              should: [
-                { exists: { field: "photos.url" } },
-                { exists: { field: "photos_count" } }
-              ]
-            }
-          } );
-          expect( q.grouped_inverse_filters ).to.deep.include( {
-            bool: {
-              should: [
-                { exists: { field: "sounds" } },
-                { exists: { field: "sounds_count" } }
-              ]
-            }
-          } );
+          expect( q.grouped_inverse_filters ).to.deep.include( { exists: { field: "photos_count" } } );
+          expect( q.grouped_inverse_filters ).to.deep.include( { exists: { field: "sounds_count" } } );
           expect( q.grouped_inverse_filters ).to.deep.include( { exists: { field: "geojson" } } );
           expect( q.grouped_inverse_filters ).to.deep.include( { exists: { field: "taxon" } } );
           // plus a complicated date filter
@@ -175,7 +147,6 @@ describe( "ObservationsController", ( ) => {
         {
           multi_match: {
             fields: [
-              "taxon.names.name",
               "taxon.names_*",
               "tags",
               "description",
@@ -190,7 +161,7 @@ describe( "ObservationsController", ( ) => {
 
     it( "queries names", ( ) => {
       Q( { q: "search", search_on: "names" }, ( e, q ) => { eq = q; } );
-      expect( eq.filters[0].multi_match.fields ).to.eql( ["taxon.names.name", "taxon.names_*"] );
+      expect( eq.filters[0].multi_match.fields ).to.eql( ["taxon.names_*"] );
     } );
 
     it( "queries tags", ( ) => {
@@ -211,7 +182,7 @@ describe( "ObservationsController", ( ) => {
     it( "queries taxon_name", ( ) => {
       Q( { taxon_name: "something" }, ( e, q ) => { eq = q; } );
       expect( eq.filters[0].multi_match.fields ).to
-        .eql( ["taxon.names.name", "taxon.names_*"] );
+        .eql( ["taxon.names_*"] );
     } );
 
     //
@@ -230,16 +201,7 @@ describe( "ObservationsController", ( ) => {
 
     it( "turns has[] into params", ( ) => {
       Q( { has: ["photos"] }, ( e, q ) => { eq = q; } );
-      expect( eq.filters ).to.eql( [
-        {
-          bool: {
-            should: [
-              { exists: { field: "photos.url" } },
-              { exists: { field: "photos_count" } }
-            ]
-          }
-        }
-      ] );
+      expect( eq.filters ).to.eql( [{ exists: { field: "photos_count" } }] );
     } );
 
     it( "filters by param values", ( ) => {
@@ -252,45 +214,25 @@ describe( "ObservationsController", ( ) => {
         { http_param: "place_id", es_field: "place_ids" },
         { http_param: "site_id", es_field: "site_id" },
         { http_param: "license", es_field: "license_code" },
-        { http_param: "photo_license", es_field: ["photos.license_code", "photo_licenses"] },
-        { http_param: "sound_license", es_field: ["sounds.license_code", "sound_licenses"] }
+        { http_param: "photo_license", es_field: "photo_licenses" },
+        { http_param: "sound_license", es_field: "sound_licenses" }
       ], filter => {
         const qp = { };
         // single values (user_id only accepts integers)
         const vSingle = ( filter.http_param === "user_id" ) ? "99" : "test";
         // multiple values (user_id only accepts integers)
         const vArray = ( filter.http_param === "user_id" ) ? ["98", "99"] : ["test1", "test2"];
-        if ( _.isArray( filter.es_field ) ) {
-          qp[filter.http_param] = vSingle;
-          Q( qp, ( e, q ) => { eq = q; } );
-          let f = {
-            bool: {
-              should: _.map( filter.es_field, ff => ( { terms: { [ff]: [vSingle] } } ) )
-            }
-          };
-          expect( eq.filters ).to.eql( [f] );
-          // Array values
-          qp[filter.http_param] = vArray;
-          Q( qp, ( e, q ) => { eq = q; } );
-          f = {
-            bool: {
-              should: _.map( filter.es_field, ff => ( { terms: { [ff]: vArray } } ) )
-            }
-          };
-          expect( eq.filters ).to.eql( [f] );
-        } else {
-          qp[filter.http_param] = vSingle;
-          Q( qp, ( e, q ) => { eq = q; } );
-          let f = { terms: { } };
-          f.terms[filter.es_field] = [vSingle];
-          expect( eq.filters ).to.eql( [f] );
-          // Array values
-          qp[filter.http_param] = vArray;
-          Q( qp, ( e, q ) => { eq = q; } );
-          f = { terms: { } };
-          f.terms[filter.es_field] = vArray;
-          expect( eq.filters ).to.eql( [f] );
-        }
+        qp[filter.http_param] = vSingle;
+        Q( qp, ( e, q ) => { eq = q; } );
+        let f = { terms: { } };
+        f.terms[filter.es_field] = [vSingle];
+        expect( eq.filters ).to.eql( [f] );
+        // Array values
+        qp[filter.http_param] = vArray;
+        Q( qp, ( e, q ) => { eq = q; } );
+        f = { terms: { } };
+        f.terms[filter.es_field] = vArray;
+        expect( eq.filters ).to.eql( [f] );
       } );
     } );
 
@@ -321,37 +263,21 @@ describe( "ObservationsController", ( ) => {
     } );
 
     it( "filters by attribute presence", ( ) => {
-      _.each( [{ http_param: "photos", es_field: ["photos.url", "photos_count"] },
-        { http_param: "sounds", es_field: ["sounds", "sounds_count"] },
+      _.each( [{ http_param: "photos", es_field: "photos_count" },
+        { http_param: "sounds", es_field: "sounds_count" },
         { http_param: "geo", es_field: "geojson" },
         { http_param: "identified", es_field: "taxon" }
       ], filter => {
         const qp = { };
-        if ( _.isArray( filter.es_field ) ) {
-          // true values
-          qp[filter.http_param] = "true";
-          Q( qp, ( e, q ) => { eq = q; } );
-          const f = {
-            bool: {
-              should: _.map( filter.es_field, ff => ( { exists: { field: ff } } ) )
-            }
-          };
-          expect( eq.filters ).to.eql( [f] );
-          // false values
-          qp[filter.http_param] = "false";
-          Q( qp, ( e, q ) => { eq = q; } );
-          expect( eq.inverse_filters ).to.eql( [f] );
-        } else {
-          // true values
-          qp[filter.http_param] = "true";
-          Q( qp, ( e, q ) => { eq = q; } );
-          const f = { exists: { field: filter.es_field } };
-          expect( eq.filters ).to.eql( [f] );
-          // false values
-          qp[filter.http_param] = "false";
-          Q( qp, ( e, q ) => { eq = q; } );
-          expect( eq.inverse_filters ).to.eql( [f] );
-        }
+        // true values
+        qp[filter.http_param] = "true";
+        Q( qp, ( e, q ) => { eq = q; } );
+        const f = { exists: { field: filter.es_field } };
+        expect( eq.filters ).to.eql( [f] );
+        // false values
+        qp[filter.http_param] = "false";
+        Q( qp, ( e, q ) => { eq = q; } );
+        expect( eq.inverse_filters ).to.eql( [f] );
       } );
     } );
 
